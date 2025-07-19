@@ -57,10 +57,13 @@ impl Status {
             }
         }
 
+        let min_pods = self.battery.min_pods();
+        let class = ["connected", "connected-low"][(min_pods <= 15) as usize];
+
         Waybar {
-            text: format!("{}% 󱡏", self.battery.min_pods()),
+            text: format!("{min_pods}% 󱡏"),
             tooltip: Some(tooltip[..tooltip.len() - 1].to_owned()),
-            class: Some("connected"),
+            class: Some(class),
             percentage: Some(self.battery.min_pods() as f32 / 100.0),
         }
     }

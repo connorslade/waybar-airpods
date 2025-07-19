@@ -1,5 +1,9 @@
 # waybar-airpods
 
+work in progress!
+
+## Usage
+
 ```json
 "custom/airpods": {
   "exec": "path/to/waybar-airpods",
