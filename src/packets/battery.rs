@@ -1,3 +1,5 @@
+use std::u8;
+
 use crate::consts::BATTERY_STATUS;
 
 #[derive(Default, Debug)]
@@ -14,7 +16,7 @@ pub struct ComponentStatus {
     pub status: BatteryStatus,
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, PartialEq, Eq)]
 pub enum Pod {
     Left,
     Right,
@@ -73,6 +75,25 @@ impl BatteryPacket {
         }
 
         Some(out)
+    }
+
+    pub fn is_valid(&self) -> bool {
+        (self.left.is_some() || self.right.is_some() || self.case.is_some())
+            && self.primary != Pod::None
+    }
+
+    pub fn min_pods(&self) -> u8 {
+        let mut min = u8::MAX;
+
+        if let Some(status) = &self.left {
+            min = min.min(status.level);
+        }
+
+        if let Some(status) = &self.right {
+            min = min.min(status.level);
+        }
+
+        min
     }
 }
 

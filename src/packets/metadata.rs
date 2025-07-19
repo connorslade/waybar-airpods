@@ -1,6 +1,6 @@
 use crate::consts::METADATA;
 
-#[derive(Debug)]
+#[derive(Default, Debug)]
 pub struct MetadataPacket {
     pub device_name: String,
     pub model_number: String,
@@ -34,5 +34,11 @@ impl MetadataPacket {
             model_number: read_string(),
             manufacturer: read_string(),
         })
+    }
+
+    pub fn is_valid(&self) -> bool {
+        !self.device_name.is_empty()
+            && !self.model_number.is_empty()
+            && !self.manufacturer.is_empty()
     }
 }

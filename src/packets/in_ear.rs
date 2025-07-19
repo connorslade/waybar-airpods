@@ -1,16 +1,17 @@
 use crate::consts::EAR_DETECTION;
 
-#[derive(Debug)]
+#[derive(Default, Debug)]
 pub struct InEarPacket {
     pub primary: EarStatus,
     pub secondary: EarStatus,
 }
 
-#[derive(Debug)]
+#[derive(Default, Debug)]
 pub enum EarStatus {
     InEar = 0x00,
     NotInEar = 0x01,
     InCase = 0x02,
+    #[default]
     Disconnected,
 }
 

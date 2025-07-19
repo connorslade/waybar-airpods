@@ -5,17 +5,16 @@ use futures::StreamExt;
 
 use crate::{
     consts::{
-        AIRPODS_SERVICE, BATTERY_STATUS, EAR_DETECTION, FEATURES_ACK, HANDSHAKE, HANDSHAKE_ACK,
-        METADATA, REQUEST_NOTIFICATIONS, SET_SPECIFIC_FEATURES,
+        AIRPODS_SERVICE, FEATURES_ACK, HANDSHAKE, HANDSHAKE_ACK, REQUEST_NOTIFICATIONS,
+        SET_SPECIFIC_FEATURES,
     },
-    packets::{battery::BatteryPacket, in_ear::InEarPacket, metadata::MetadataPacket},
+    status::Status,
 };
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 mod consts;
 mod packets;
-
-// airpods → 󱡏
+mod status;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -43,6 +42,7 @@ async fn main() -> Result<()> {
         let mut stream = handle.accept().unwrap();
         stream.write_all(HANDSHAKE).await.unwrap();
 
+        let mut status = Status::default();
         loop {
             let mut data = Vec::new();
 
@@ -56,16 +56,12 @@ async fn main() -> Result<()> {
                 }
             }
 
-            if data.starts_with(BATTERY_STATUS) {
-                dbg!(BatteryPacket::parse(&data));
-            } else if data.starts_with(METADATA) {
-                dbg!(MetadataPacket::parse(&data));
-            } else if data.starts_with(EAR_DETECTION) {
-                dbg!(InEarPacket::parse(&data));
-            } else if data.starts_with(HANDSHAKE_ACK) {
+            if data.starts_with(HANDSHAKE_ACK) {
                 stream.write_all(SET_SPECIFIC_FEATURES).await?;
             } else if data.starts_with(FEATURES_ACK) {
                 stream.write_all(REQUEST_NOTIFICATIONS).await?;
+            } else {
+                status.got_packet(&data);
             }
         }
     }
