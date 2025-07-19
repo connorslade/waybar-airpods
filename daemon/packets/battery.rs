@@ -76,25 +76,6 @@ impl BatteryPacket {
 
         Some(out)
     }
-
-    pub fn is_valid(&self) -> bool {
-        (self.left.is_some() || self.right.is_some() || self.case.is_some())
-            && self.primary != Pod::None
-    }
-
-    pub fn min_pods(&self) -> u8 {
-        let mut min = u8::MAX;
-
-        if let Some(status) = &self.left {
-            min = min.min(status.level);
-        }
-
-        if let Some(status) = &self.right {
-            min = min.min(status.level);
-        }
-
-        min
-    }
 }
 
 impl Component {

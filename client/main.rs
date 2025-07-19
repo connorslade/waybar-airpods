@@ -1,87 +1,31 @@
+use std::future::pending;
+
 use anyhow::Result;
-use bluer::rfcomm::{Profile, Role};
-use clone_macro::clone;
-use futures::StreamExt;
+use uuid::Uuid;
+use zbus::{conn, interface};
 
-use crate::{
-    consts::{
-        AIRPODS_SERVICE, FEATURES_ACK, HANDSHAKE, HANDSHAKE_ACK, REQUEST_NOTIFICATIONS,
-        SET_SPECIFIC_FEATURES,
-    },
-    status::Status,
-};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use common::waybar::Waybar;
 
-mod consts;
-mod packets;
-mod status;
+struct WaybarAirpodsClient;
+
+#[interface(name = "com.connorcode.WaybarAirpodsClient")]
+impl WaybarAirpodsClient {
+    fn push_status(&self, waybar: Waybar) {
+        waybar.print();
+    }
+}
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let session = bluer::Session::new().await?;
-    let adapter = session.default_adapter().await?;
+    let uuid = Uuid::new_v4();
+    let path = format!("/com/connorcode/WaybarAirpods/{}", uuid.as_u128());
 
-    let profile = Profile {
-        uuid: AIRPODS_SERVICE,
-        role: Some(Role::Client),
-        service: Some(AIRPODS_SERVICE),
-        ..Default::default()
-    };
-    let mut profile = session.register_profile(profile).await?;
+    let _conn = conn::Builder::session()?
+        .name("com.connorcode.WaybarAirpodsClient")?
+        .serve_at(path, WaybarAirpodsClient)?
+        .build()
+        .await?;
 
-    let device = get_airpods(&adapter).await?.unwrap();
-    tokio::spawn(clone!([device], async move {
-        device.connect_profile(&AIRPODS_SERVICE).await.unwrap()
-    }));
-
-    while let Some(handle) = profile.next().await {
-        if handle.device() != device.address() {
-            continue;
-        }
-
-        let mut stream = handle.accept().unwrap();
-        stream.write_all(HANDSHAKE).await.unwrap();
-
-        let mut status = Status::default();
-        loop {
-            let mut data = Vec::new();
-
-            loop {
-                let mut buffer = vec![0; 1024];
-                let bytes = stream.read(&mut buffer).await.unwrap();
-                data.extend_from_slice(&buffer[..bytes]);
-
-                if bytes < buffer.len() {
-                    break;
-                }
-            }
-
-            if data.starts_with(HANDSHAKE_ACK) {
-                stream.write_all(SET_SPECIFIC_FEATURES).await?;
-            } else if data.starts_with(FEATURES_ACK) {
-                stream.write_all(REQUEST_NOTIFICATIONS).await?;
-            } else {
-                status.got_packet(&data);
-            }
-        }
-    }
-
+    pending::<()>().await;
     Ok(())
-}
-
-async fn get_airpods(adapter: &bluer::Adapter) -> Result<Option<bluer::Device>> {
-    let connected = adapter.device_addresses().await?;
-    for connected in connected {
-        let device = adapter.device(connected)?;
-        if is_airpods(&device).await {
-            return Ok(Some(device));
-        }
-    }
-
-    Ok(None)
-}
-
-async fn is_airpods(device: &bluer::Device) -> bool {
-    let uuids = device.uuids().await.unwrap().unwrap();
-    uuids.contains(&AIRPODS_SERVICE)
 }
