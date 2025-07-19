@@ -1,3 +1,5 @@
+use common::status;
+
 use crate::consts::BATTERY_STATUS;
 
 #[derive(Default, Debug)]
@@ -8,13 +10,13 @@ pub struct BatteryPacket {
     pub primary: Pod,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct ComponentStatus {
     pub level: u8,
     pub status: BatteryStatus,
 }
 
-#[derive(Default, Debug, PartialEq, Eq)]
+#[derive(Default, Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Pod {
     Left,
     Right,
@@ -22,7 +24,7 @@ pub enum Pod {
     None,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 #[repr(u8)]
 pub enum BatteryStatus {
     Charging = 0x01,
@@ -74,6 +76,10 @@ impl BatteryPacket {
 
         Some(out)
     }
+
+    pub fn as_arr(&self) -> [&Option<ComponentStatus>; 3] {
+        [&self.left, &self.right, &self.case]
+    }
 }
 
 impl Component {
@@ -102,6 +108,25 @@ impl BatteryStatus {
             0x02 => Some(Self::Discharging),
             0x04 => Some(Self::Disconnected),
             _ => None,
+        }
+    }
+}
+
+impl Into<status::ComponentStatus> for ComponentStatus {
+    fn into(self) -> status::ComponentStatus {
+        status::ComponentStatus {
+            level: self.level,
+            status: self.status.into(),
+        }
+    }
+}
+
+impl Into<status::BatteryStatus> for BatteryStatus {
+    fn into(self) -> status::BatteryStatus {
+        match self {
+            BatteryStatus::Charging => status::BatteryStatus::Charging,
+            BatteryStatus::Discharging => status::BatteryStatus::Discharging,
+            BatteryStatus::Disconnected => status::BatteryStatus::Disconnected,
         }
     }
 }

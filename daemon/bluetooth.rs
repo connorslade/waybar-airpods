@@ -18,9 +18,19 @@ use crate::{
         AIRPODS_SERVICE, FEATURES_ACK, HANDSHAKE, HANDSHAKE_ACK, REQUEST_NOTIFICATIONS,
         SET_SPECIFIC_FEATURES,
     },
-    packets::{battery::BatteryPacket, in_ear::InEarPacket, metadata::MetadataPacket},
+    packets::{
+        battery::{BatteryPacket, Pod},
+        in_ear::InEarPacket,
+        metadata::MetadataPacket,
+    },
 };
 use common::{status::Status, waybar::Waybar};
+
+#[derive(Default)]
+struct State {
+    primary: Pod,
+    status: Status,
+}
 
 pub async fn run(interface: InterfaceRef<WaybarAirpodsDaemon>) -> Result<()> {
     let session = bluer::Session::new().await?;
@@ -71,7 +81,7 @@ async fn handle_connection(
 ) -> Result<()> {
     stream.write_all(HANDSHAKE).await.unwrap();
 
-    let mut status = Status::default();
+    let mut state = State::default();
     loop {
         let mut data = Vec::new();
 
@@ -90,27 +100,41 @@ async fn handle_connection(
         } else if data.starts_with(FEATURES_ACK) {
             stream.write_all(REQUEST_NOTIFICATIONS).await?;
         } else {
-            let hash = status.hash();
-            got_packet(&mut status, &data);
+            let hash = state.status.hash();
+            got_packet(&mut state, &data);
 
-            if hash != status.hash() {
-                let waybar = Waybar::from_status(&status);
+            if hash != state.status.hash() {
+                let waybar = Waybar::from_status(&state.status);
                 interface.waybar_update(waybar).await?;
             }
         }
     }
 }
 
-fn got_packet(status: &mut Status, data: &[u8]) {
+fn got_packet(state: &mut State, data: &[u8]) {
     if let Some(metadata) = MetadataPacket::parse(data) {
         println!("{metadata:?}");
+        state.status.metadata = Some(metadata.into());
     } else if let Some(battery) = BatteryPacket::parse(data) {
         println!("{battery:?}");
-        status.left = battery.left.map(|x| x.level);
-        status.right = battery.right.map(|x| x.level);
-        status.case = battery.case.map(|x| x.level);
+        state.primary = battery.primary;
+
+        let mut status_comp = state.status.components.as_arr_mut();
+        let battery_comp = battery.as_arr();
+        for (status, battery) in status_comp.iter_mut().zip(battery_comp) {
+            if let Some(battery) = *battery {
+                **status = Some(battery.into());
+            }
+        }
     } else if let Some(in_ear) = InEarPacket::parse(data) {
         println!("{in_ear:?}");
+
+        let Some([left, right]) = in_ear.get(state.primary) else {
+            return;
+        };
+
+        state.status.ear.left = left.into();
+        state.status.ear.right = right.into();
     }
 }
 
@@ -119,16 +143,13 @@ async fn get_airpods(adapter: &bluer::Adapter) -> Result<bluer::Device> {
         let connected = adapter.device_addresses().await?;
         for connected in connected {
             let device = adapter.device(connected)?;
-            if is_airpods(&device).await {
+
+            let uuids = device.uuids().await.unwrap().unwrap();
+            if uuids.contains(&AIRPODS_SERVICE) {
                 return Ok(device);
             }
         }
 
         time::sleep(Duration::from_secs(15)).await;
     }
-}
-
-async fn is_airpods(device: &bluer::Device) -> bool {
-    let uuids = device.uuids().await.unwrap().unwrap();
-    uuids.contains(&AIRPODS_SERVICE)
 }

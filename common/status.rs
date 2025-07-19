@@ -2,9 +2,50 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 
 #[derive(Default, Hash)]
 pub struct Status {
-    pub left: Option<u8>,
-    pub right: Option<u8>,
-    pub case: Option<u8>,
+    pub metadata: Option<Metadata>,
+    pub components: Components,
+    pub ear: InEar,
+}
+
+#[derive(Hash)]
+pub struct Metadata {
+    pub name: String,
+    pub model: String,
+}
+
+#[derive(Default, Hash)]
+pub struct Components {
+    pub left: Option<ComponentStatus>,
+    pub right: Option<ComponentStatus>,
+    pub case: Option<ComponentStatus>,
+}
+
+#[derive(Default, Hash)]
+pub struct InEar {
+    pub left: EarStatus,
+    pub right: EarStatus,
+}
+
+#[derive(Hash)]
+pub struct ComponentStatus {
+    pub level: u8,
+    pub status: BatteryStatus,
+}
+
+#[derive(Hash)]
+pub enum BatteryStatus {
+    Charging,
+    Discharging,
+    Disconnected,
+}
+
+#[derive(Default, Hash, Clone, Copy)]
+pub enum EarStatus {
+    InEar,
+    NotInEar,
+    InCase,
+    #[default]
+    Disconnected,
 }
 
 impl Status {
@@ -15,20 +56,39 @@ impl Status {
     }
 
     pub fn is_valid(&self) -> bool {
-        self.left.is_some() || self.right.is_some() || self.case.is_some()
+        let Components { left, right, case } = &self.components;
+        left.is_some() || right.is_some() || case.is_some()
     }
 
     pub fn min_pods(&self) -> u8 {
         let mut out = u8::MAX;
 
-        if let Some(left) = self.left {
-            out = out.min(left);
-        }
-
-        if let Some(right) = self.right {
-            out = out.min(right);
+        let Components { left, right, .. } = &self.components;
+        for component in [&left, &right] {
+            if let Some(component) = &component
+                && matches!(component.status, BatteryStatus::Discharging)
+            {
+                out = out.min(component.level);
+            }
         }
 
         out
+    }
+}
+
+impl Components {
+    pub fn as_arr_mut(&mut self) -> [&mut Option<ComponentStatus>; 3] {
+        [&mut self.left, &mut self.right, &mut self.case]
+    }
+}
+
+impl EarStatus {
+    pub fn icon(&self) -> &'static str {
+        match self {
+            EarStatus::InEar => "󱡏",
+            EarStatus::NotInEar => "󱡒",
+            EarStatus::InCase => "󱡑",
+            EarStatus::Disconnected => "",
+        }
     }
 }

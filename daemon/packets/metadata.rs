@@ -1,3 +1,5 @@
+use common::status;
+
 use crate::consts::METADATA;
 
 #[derive(Default, Debug)]
@@ -34,5 +36,14 @@ impl MetadataPacket {
             model_number: read_string(),
             manufacturer: read_string(),
         })
+    }
+}
+
+impl Into<status::Metadata> for MetadataPacket {
+    fn into(self) -> status::Metadata {
+        status::Metadata {
+            name: self.device_name,
+            model: self.model_number,
+        }
     }
 }

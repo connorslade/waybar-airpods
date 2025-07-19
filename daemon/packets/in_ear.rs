@@ -1,4 +1,6 @@
-use crate::consts::EAR_DETECTION;
+use common::status;
+
+use crate::{consts::EAR_DETECTION, packets::battery::Pod};
 
 #[derive(Default, Debug)]
 pub struct InEarPacket {
@@ -6,7 +8,7 @@ pub struct InEarPacket {
     pub secondary: EarStatus,
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone, Copy)]
 pub enum EarStatus {
     InEar = 0x00,
     NotInEar = 0x01,
@@ -26,6 +28,14 @@ impl InEarPacket {
             secondary: EarStatus::from(bytes[7]),
         })
     }
+
+    pub fn get(&self, primary: Pod) -> Option<[EarStatus; 2]> {
+        Some(match primary {
+            Pod::Left => [self.primary, self.secondary],
+            Pod::Right => [self.secondary, self.primary],
+            Pod::None => return None,
+        })
+    }
 }
 
 impl EarStatus {
@@ -35,6 +45,17 @@ impl EarStatus {
             0x01 => EarStatus::NotInEar,
             0x02 => EarStatus::InCase,
             _ => EarStatus::Disconnected,
+        }
+    }
+}
+
+impl Into<status::EarStatus> for EarStatus {
+    fn into(self) -> status::EarStatus {
+        match self {
+            EarStatus::InEar => status::EarStatus::InEar,
+            EarStatus::NotInEar => status::EarStatus::NotInEar,
+            EarStatus::InCase => status::EarStatus::InCase,
+            EarStatus::Disconnected => status::EarStatus::Disconnected,
         }
     }
 }

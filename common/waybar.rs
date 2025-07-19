@@ -3,7 +3,7 @@ use std::io::{Write, stdout};
 use serde::{Deserialize, Serialize};
 use zbus::zvariant::Type;
 
-use crate::status::Status;
+use crate::status::{BatteryStatus, Components, Status};
 
 #[derive(Serialize, Deserialize, Debug, Type)]
 pub struct Waybar {
@@ -29,21 +29,47 @@ impl Waybar {
         }
 
         let mut tooltip = String::new();
-        for (name, status) in [
-            ("Left", &status.left),
-            ("Right", &status.right),
-            ("Case", &status.case),
-        ] {
-            if let Some(status) = status {
-                tooltip.push_str(&format!("{}: {}%\n", name, status));
-            }
+        if let Some(metadata) = &status.metadata {
+            tooltip.push_str(&format!("{} ({})\n", metadata.name, metadata.model));
+        }
+
+        let Components { left, right, case } = &status.components;
+        for (idx, (name, component)) in [("Left", left), ("Right", right), ("Case", case)]
+            .iter()
+            .enumerate()
+        {
+            let Some(component) = component else {
+                continue;
+            };
+
+            let icon = match component.status {
+                BatteryStatus::Charging => "󰢝",
+                BatteryStatus::Discharging => match idx {
+                    0 => status.ear.left,
+                    1 => status.ear.right,
+                    _ => crate::status::EarStatus::Disconnected,
+                }
+                .icon(),
+                BatteryStatus::Disconnected => continue,
+            };
+
+            tooltip.push_str(&format!("{icon} {name}: {}%\n", component.level));
         }
 
         let min_pods = status.min_pods();
-        let class = ["connected", "connected-low"][(min_pods <= 15) as usize];
+        let is_low = min_pods <= 15;
+
+        let class = ["connected", "connected-low"][is_low as usize];
+        let battery = ["", "󱃍"][is_low as usize];
+
+        let text = if min_pods == u8::MAX {
+            format!("󱡏{battery}")
+        } else {
+            format!("{min_pods}% 󱡏{battery}")
+        };
 
         Waybar {
-            text: format!("{min_pods}% 󱡏"),
+            text,
             tooltip: Some(tooltip[..tooltip.len() - 1].to_owned()),
             class: Some(class.into()),
             percentage: Some(min_pods as f32 / 100.0),
