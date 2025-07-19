@@ -1,4 +1,6 @@
-#[derive(Default)]
+use std::hash::{DefaultHasher, Hash, Hasher};
+
+#[derive(Default, Hash)]
 pub struct Status {
     pub left: Option<u8>,
     pub right: Option<u8>,
@@ -6,6 +8,12 @@ pub struct Status {
 }
 
 impl Status {
+    pub fn hash(&self) -> u64 {
+        let mut hasher = DefaultHasher::new();
+        Hash::hash(self, &mut hasher);
+        hasher.finish()
+    }
+
     pub fn is_valid(&self) -> bool {
         self.left.is_some() || self.right.is_some() || self.case.is_some()
     }

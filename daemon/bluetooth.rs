@@ -3,17 +3,19 @@ use bluer::rfcomm::{Profile, Role};
 use clone_macro::clone;
 use futures::StreamExt;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use zbus::object_server::InterfaceRef;
 
 use crate::{
+    WaybarAirpodsDaemon, WaybarAirpodsDaemonSignals,
     consts::{
         AIRPODS_SERVICE, FEATURES_ACK, HANDSHAKE, HANDSHAKE_ACK, REQUEST_NOTIFICATIONS,
         SET_SPECIFIC_FEATURES,
     },
     packets::{battery::BatteryPacket, in_ear::InEarPacket, metadata::MetadataPacket},
 };
-use common::status::Status;
+use common::{status::Status, waybar::Waybar};
 
-pub async fn run() -> Result<()> {
+pub async fn run(interface: InterfaceRef<WaybarAirpodsDaemon>) -> Result<()> {
     let session = bluer::Session::new().await?;
     let adapter = session.default_adapter().await?;
 
@@ -57,7 +59,13 @@ pub async fn run() -> Result<()> {
             } else if data.starts_with(FEATURES_ACK) {
                 stream.write_all(REQUEST_NOTIFICATIONS).await?;
             } else {
+                let hash = status.hash();
                 got_packet(&mut status, &data);
+
+                if hash != status.hash() {
+                    let waybar = Waybar::from_status(&status);
+                    interface.waybar_update(waybar).await?;
+                }
             }
         }
     }

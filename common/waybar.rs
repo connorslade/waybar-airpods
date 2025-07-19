@@ -5,7 +5,7 @@ use zbus::zvariant::Type;
 
 use crate::status::Status;
 
-#[derive(Serialize, Deserialize, Type)]
+#[derive(Serialize, Deserialize, Debug, Type)]
 pub struct Waybar {
     text: String,
     tooltip: Option<String>,
@@ -14,14 +14,18 @@ pub struct Waybar {
 }
 
 impl Waybar {
+    pub fn not_connected() -> Self {
+        Waybar {
+            text: "󰟦".into(),
+            tooltip: Some("Daemon not active".into()),
+            class: Some("disconnected".into()),
+            percentage: None,
+        }
+    }
+
     pub fn from_status(status: &Status) -> Self {
         if !status.is_valid() {
-            return Waybar {
-                text: "󱡐".into(),
-                tooltip: None,
-                class: Some("disconnected".into()),
-                percentage: None,
-            };
+            return Waybar::default();
         }
 
         let mut tooltip = String::new();
@@ -52,5 +56,16 @@ impl Waybar {
         let mut stdout = stdout();
         let _ = stdout.write_fmt(format_args!("{str}\n"));
         let _ = stdout.flush();
+    }
+}
+
+impl Default for Waybar {
+    fn default() -> Self {
+        Waybar {
+            text: "󱡐".into(),
+            tooltip: None,
+            class: Some("disconnected".into()),
+            percentage: None,
+        }
     }
 }

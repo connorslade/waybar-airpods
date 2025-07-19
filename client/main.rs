@@ -1,31 +1,31 @@
-use std::future::pending;
-
 use anyhow::Result;
-use uuid::Uuid;
-use zbus::{conn, interface};
+use futures::StreamExt;
+use zbus::{Connection, proxy};
 
 use common::waybar::Waybar;
 
-struct WaybarAirpodsClient;
-
-#[interface(name = "com.connorcode.WaybarAirpodsClient")]
-impl WaybarAirpodsClient {
-    fn push_status(&self, waybar: Waybar) {
-        waybar.print();
-    }
+#[proxy(
+    default_service = "com.connorcode.WaybarAirpods",
+    default_path = "/com/connorcode/WaybarAirpods",
+    interface = "com.connorcode.WaybarAirpods"
+)]
+trait WaybarAirpodsDaemon {
+    #[zbus(signal)]
+    async fn waybar_update(&self, waybar: Waybar);
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let uuid = Uuid::new_v4();
-    let path = format!("/com/connorcode/WaybarAirpods/{}", uuid.as_u128());
+    Waybar::not_connected().print();
 
-    let _conn = conn::Builder::session()?
-        .name("com.connorcode.WaybarAirpodsClient")?
-        .serve_at(path, WaybarAirpodsClient)?
-        .build()
-        .await?;
+    let connection = Connection::session().await?;
+    let proxy = WaybarAirpodsDaemonProxy::new(&connection).await?;
 
-    pending::<()>().await;
+    let mut stream = proxy.receive_waybar_update().await?;
+    while let Some(msg) = stream.next().await {
+        let waybar = msg.args()?.waybar;
+        waybar.print();
+    }
+
     Ok(())
 }
