@@ -12,39 +12,51 @@ const HANDSHAKE: &[u8] = &[0, 0, 4, 0, 1, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 async fn main() -> Result<()> {
     let session = bluer::Session::new().await?;
     let adapter = session.default_adapter().await?;
-    adapter.set_powered(true).await?;
 
     let device = get_airpods(&adapter).await?.unwrap();
-
-    println!("Found AirPods: {:?}", device.all_properties().await?);
-
-    // device.connect().await?;
-    // device.connect_profile(&AIRPODS_SERVICE).await?;
+    // println!("Found AirPods: {:?}", device.all_properties().await?);
 
     let profile = Profile {
         uuid: AIRPODS_SERVICE,
         role: Some(Role::Client),
-        require_authentication: Some(false),
-        require_authorization: Some(false),
-        auto_connect: Some(false),
+        service: Some(AIRPODS_SERVICE),
         ..Default::default()
     };
 
     let mut profile = session.register_profile(profile).await?;
-    let handle = profile.next().await.unwrap();
     println!("Registered profile");
 
-    let mut stream = handle.accept().unwrap();
-    println!("Stream created");
+    let addr = device.address();
+    tokio::spawn(async move {
+        while let Some(handle) = profile.next().await {
+            if handle.device() != addr {
+                println!("Ignoring request");
+                continue;
+            }
 
-    stream.write_all(HANDSHAKE).await.unwrap();
+            println!("Airpods requested!");
+            let mut stream = handle.accept().unwrap();
+            println!("Stream created");
 
-    loop {
-        let mut buffer = vec![0; 1024];
-        let bytes = stream.read(&mut buffer).await?;
+            stream.write_all(HANDSHAKE).await.unwrap();
 
-        println!("Received data: {:?}", &buffer[..bytes]);
+            loop {
+                let mut buffer = vec![0; 1024];
+                let bytes = stream.read(&mut buffer).await.unwrap();
+
+                println!("Received data: {:?}", &buffer[..bytes]);
+            }
+        }
+    });
+
+    device.connect_profile(&AIRPODS_SERVICE).await?;
+    println!("Connected");
+
+    while device.is_connected().await.unwrap_or(false) {
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
     }
+
+    Ok(())
 }
 
 async fn get_airpods(adapter: &bluer::Adapter) -> Result<Option<bluer::Device>> {
