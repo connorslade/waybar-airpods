@@ -1,5 +1,3 @@
-use std::u8;
-
 use crate::consts::BATTERY_STATUS;
 
 #[derive(Default, Debug)]

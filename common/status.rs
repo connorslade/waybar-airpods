@@ -29,12 +29,6 @@ impl Status {
             out = out.min(right);
         }
 
-        if let Some(case) = self.case
-            && case > 0
-        {
-            out = out.min(case);
-        }
-
         out
     }
 }
