@@ -1,59 +1,65 @@
 use anyhow::Result;
-use bluer::rfcomm::{Profile, Role};
+use clone_macro::clone;
 use futures::StreamExt;
+
+use crate::{
+    consts::{
+        AIRPODS_PROFILE, AIRPODS_SERVICE, BATTERY_STATUS, EAR_DETECTION, FEATURES_ACK, HANDSHAKE,
+        HANDSHAKE_ACK, METADATA, REQUEST_NOTIFICATIONS, SET_SPECIFIC_FEATURES,
+    },
+    packets::{battery::BatteryPacket, in_ear::InEarPacket, metadata::MetadataPacket},
+};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use uuid::{Uuid, uuid};
 
-const AIRPODS_SERVICE: Uuid = uuid!("74ec2172-0bad-4d01-8f77-997b2be0722a");
+mod consts;
+mod packets;
 
-const HANDSHAKE: &[u8] = &[0, 0, 4, 0, 1, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+// airpods → 󱡏
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let session = bluer::Session::new().await?;
     let adapter = session.default_adapter().await?;
+    let mut profile = session.register_profile(AIRPODS_PROFILE.clone()).await?;
 
     let device = get_airpods(&adapter).await?.unwrap();
-    // println!("Found AirPods: {:?}", device.all_properties().await?);
+    tokio::spawn(clone!([device], async move {
+        device.connect_profile(&AIRPODS_SERVICE).await.unwrap()
+    }));
 
-    let profile = Profile {
-        uuid: AIRPODS_SERVICE,
-        role: Some(Role::Client),
-        service: Some(AIRPODS_SERVICE),
-        ..Default::default()
-    };
+    while let Some(handle) = profile.next().await {
+        if handle.device() != device.address() {
+            continue;
+        }
 
-    let mut profile = session.register_profile(profile).await?;
-    println!("Registered profile");
+        let mut stream = handle.accept().unwrap();
+        stream.write_all(HANDSHAKE).await.unwrap();
 
-    let addr = device.address();
-    tokio::spawn(async move {
-        while let Some(handle) = profile.next().await {
-            if handle.device() != addr {
-                println!("Ignoring request");
-                continue;
-            }
-
-            println!("Airpods requested!");
-            let mut stream = handle.accept().unwrap();
-            println!("Stream created");
-
-            stream.write_all(HANDSHAKE).await.unwrap();
+        loop {
+            let mut data = Vec::new();
 
             loop {
                 let mut buffer = vec![0; 1024];
                 let bytes = stream.read(&mut buffer).await.unwrap();
+                data.extend_from_slice(&buffer[..bytes]);
 
-                println!("Received data: {:?}", &buffer[..bytes]);
+                if bytes < buffer.len() {
+                    break;
+                }
+            }
+
+            if data.starts_with(BATTERY_STATUS) {
+                dbg!(BatteryPacket::parse(&data));
+            } else if data.starts_with(METADATA) {
+                dbg!(MetadataPacket::parse(&data));
+            } else if data.starts_with(EAR_DETECTION) {
+                dbg!(InEarPacket::parse(&data));
+            } else if data.starts_with(HANDSHAKE_ACK) {
+                stream.write_all(SET_SPECIFIC_FEATURES).await?;
+            } else if data.starts_with(FEATURES_ACK) {
+                stream.write_all(REQUEST_NOTIFICATIONS).await?;
             }
         }
-    });
-
-    device.connect_profile(&AIRPODS_SERVICE).await?;
-    println!("Connected");
-
-    while device.is_connected().await.unwrap_or(false) {
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
     }
 
     Ok(())
