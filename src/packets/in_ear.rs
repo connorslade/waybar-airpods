@@ -2,12 +2,12 @@ use crate::consts::EAR_DETECTION;
 
 #[derive(Debug)]
 pub struct InEarPacket {
-    pub primary: InEar,
-    pub secondary: InEar,
+    pub primary: EarStatus,
+    pub secondary: EarStatus,
 }
 
 #[derive(Debug)]
-pub enum InEar {
+pub enum EarStatus {
     InEar = 0x00,
     NotInEar = 0x01,
     InCase = 0x02,
@@ -21,19 +21,19 @@ impl InEarPacket {
         }
 
         Some(InEarPacket {
-            primary: InEar::from(bytes[6]),
-            secondary: InEar::from(bytes[7]),
+            primary: EarStatus::from(bytes[6]),
+            secondary: EarStatus::from(bytes[7]),
         })
     }
 }
 
-impl InEar {
+impl EarStatus {
     pub fn from(byte: u8) -> Self {
         match byte {
-            0x00 => InEar::InEar,
-            0x01 => InEar::NotInEar,
-            0x02 => InEar::InCase,
-            _ => InEar::Disconnected,
+            0x00 => EarStatus::InEar,
+            0x01 => EarStatus::NotInEar,
+            0x02 => EarStatus::InCase,
+            _ => EarStatus::Disconnected,
         }
     }
 }

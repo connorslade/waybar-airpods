@@ -1,15 +1,6 @@
-use std::sync::LazyLock;
-
-use bluer::rfcomm::{Profile, Role};
 use uuid::{Uuid, uuid};
 
 pub const AIRPODS_SERVICE: Uuid = uuid!("74ec2172-0bad-4d01-8f77-997b2be0722a");
-pub const AIRPODS_PROFILE: LazyLock<Profile> = LazyLock::new(|| Profile {
-    uuid: AIRPODS_SERVICE,
-    role: Some(Role::Client),
-    service: Some(AIRPODS_SERVICE),
-    ..Default::default()
-});
 
 pub const HANDSHAKE: &[u8] = &[
     0x00, 0x00, 0x04, 0x00, 0x01, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,

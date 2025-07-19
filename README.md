@@ -1,5 +1,5 @@
-# airpods-cli
+# waybar-airpods
 
 ## References
 
-- <https://github.com/kavishdevar/librepods>
+- [librepods AAP Definitions](https://github.com/kavishdevar/librepods/blob/main/AAP%20Definitions.md) &mdash; Document documenting the general format of the AirPod control packets

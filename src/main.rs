@@ -1,11 +1,12 @@
 use anyhow::Result;
+use bluer::rfcomm::{Profile, Role};
 use clone_macro::clone;
 use futures::StreamExt;
 
 use crate::{
     consts::{
-        AIRPODS_PROFILE, AIRPODS_SERVICE, BATTERY_STATUS, EAR_DETECTION, FEATURES_ACK, HANDSHAKE,
-        HANDSHAKE_ACK, METADATA, REQUEST_NOTIFICATIONS, SET_SPECIFIC_FEATURES,
+        AIRPODS_SERVICE, BATTERY_STATUS, EAR_DETECTION, FEATURES_ACK, HANDSHAKE, HANDSHAKE_ACK,
+        METADATA, REQUEST_NOTIFICATIONS, SET_SPECIFIC_FEATURES,
     },
     packets::{battery::BatteryPacket, in_ear::InEarPacket, metadata::MetadataPacket},
 };
@@ -20,7 +21,14 @@ mod packets;
 async fn main() -> Result<()> {
     let session = bluer::Session::new().await?;
     let adapter = session.default_adapter().await?;
-    let mut profile = session.register_profile(AIRPODS_PROFILE.clone()).await?;
+
+    let profile = Profile {
+        uuid: AIRPODS_SERVICE,
+        role: Some(Role::Client),
+        service: Some(AIRPODS_SERVICE),
+        ..Default::default()
+    };
+    let mut profile = session.register_profile(profile).await?;
 
     let device = get_airpods(&adapter).await?.unwrap();
     tokio::spawn(clone!([device], async move {
